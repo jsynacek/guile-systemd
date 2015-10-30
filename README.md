@@ -2,9 +2,9 @@
 Experimental Scheme bindings for systemd.
 
 ## Requirements
-gcc
-guile-2.0+
-systemd-v225+
+- gcc
+- guile-2.0+
+- systemd-v225+
 
 ## Installation
 None, yet...
