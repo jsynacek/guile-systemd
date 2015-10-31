@@ -19,23 +19,66 @@
 #include <libguile.h>
 #include <systemd/sd-journal.h>
 
+/* XXX: This is an awful hack that is here because the systemd API hides
+   the sd_journal struct with a typedef. I should really try to figure
+   out another way to do this. The following definitions are not exactly
+   what is in the library, but the size and internal data layout should
+   be the same. */
+#include <stdbool.h>
+struct Location {
+        int type;
+        bool seqnum_set;
+        bool realtime_set;
+        bool monotonic_set;
+        bool xor_hash_set;
+        uint64_t seqnum;
+        sd_id128_t seqnum_id;
+        uint64_t realtime;
+        uint64_t monotonic;
+        sd_id128_t boot_id;
+        uint64_t xor_hash;
+};
+struct sd_journal {
+        char *path;
+        char *prefix;
+        void *files;
+        void *mmap;
+        struct Location current_location;
+        void *current_file;
+        uint64_t current_field;
+        void *level0, *level1, *level2;
+        pid_t original_pid;
+        int inotify_fd;
+        unsigned current_invalidate_counter, last_invalidate_counter;
+        uint64_t last_process_usec;
+        char *unique_field;
+        void *unique_file;
+        uint64_t unique_offset;
+        int flags;
+        bool on_network;
+        bool no_new_files;
+        bool unique_file_lost;
+        size_t data_threshold;
+        void *directories_by_path;
+        void *directories_by_wd;
+        void *errors;
+};
 
-#define _error_with_args(key, subr, message, args, data) \
-  scm_error_scm(scm_from_latin1_symbol(key),             \
-  scm_from_locale_string(subr),                          \
-  scm_from_locale_string(message),                       \
-  args, data)
 
-#define _error(message) _error_with_args("misc-error", \
-					 __func__,     \
-					 message,      \
-					 SCM_EOL,      \
-					 SCM_EOL)
+static scm_t_bits journal_tag;
 
+static void error_system_error(const char *proc, const char *message, int errno)
+{
+	scm_error_scm(scm_from_latin1_symbol("system-error"),
+		      scm_from_latin1_string(proc),
+		      scm_from_locale_string(message), SCM_EOL,
+		      scm_list_1(scm_from_int(errno)));
+}
+#define error_system(message, errno) error_system_error(__func__, message, errno)
 
-SCM_DEFINE(journal_send, "journal-send", 1, 0, 0,
+SCM_DEFINE(journal_send, "journal-sendv", 1, 0, 0,
 	   (SCM messages),
-	   "Send a list of messages to the journal.")
+	   "")
 {
 	struct iovec *iov;
 	int i, n, r;
@@ -53,10 +96,228 @@ SCM_DEFINE(journal_send, "journal-send", 1, 0, 0,
 
 	r = sd_journal_sendv(iov, n);
 	if (r < 0)
-		return _error("failed to send data to journal");
+		error_system("Failed to send data to journal", -r);
 
 	return SCM_UNSPECIFIED;
 }
+
+SCM_SYMBOL(sym_local_only, "local-only");
+SCM_SYMBOL(sym_runtime_only, "runtime-only");
+SCM_SYMBOL(sym_system, "system");
+SCM_SYMBOL(sym_current_user, "current-user");
+
+SCM_DEFINE(journal_open, "journal-open", 1, 0, 0,
+	   (SCM s_flags),
+	   "")
+{
+	SCM smob;
+	sd_journal *j;
+	int flags = 0;
+	int i, n, r;
+
+	n = scm_to_int(scm_length(s_flags));
+	for (i = 0; i < n; i++) {
+		SCM item;
+
+		item = scm_list_ref(s_flags, scm_from_int(i));
+		if (scm_is_eq(item, sym_local_only))
+			flags |= SD_JOURNAL_LOCAL_ONLY;
+		else if (scm_is_eq(item, sym_runtime_only))
+			flags |= SD_JOURNAL_RUNTIME_ONLY;
+		else if (scm_is_eq(item, sym_system))
+			flags |= SD_JOURNAL_SYSTEM;
+		else if (scm_is_eq(item, sym_current_user))
+			flags |= SD_JOURNAL_CURRENT_USER;
+		else
+			scm_error_scm(scm_from_latin1_symbol("misc-error"),
+				      scm_from_latin1_string(__func__),
+				      scm_from_locale_string("Unknown flag: ~A"), scm_list_1(item),
+				      SCM_EOL);
+	}
+
+	r = sd_journal_open(&j, flags);
+	if (r < 0)
+		error_system("Failed to open journal", -r);
+
+	SCM_NEWSMOB(smob, journal_tag, j);
+
+	return smob;
+}
+
+SCM_DEFINE(journal_add_match, "journal-add-match", 2, 0, 0,
+	   (SCM smob, SCM s_match),
+	   "")
+{
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+	char *data;
+	int r;
+
+	data = scm_to_locale_string(s_match);
+	r = sd_journal_add_match(j, data, strlen(data));
+	if (r < 0)
+		error_system("Failed to add match", -r);
+
+	return SCM_UNSPECIFIED;
+}
+
+SCM_DEFINE(journal_add_conjunction, "journal-add-conjunction", 1, 0, 0,
+	   (SCM smob),
+	   "")
+{
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+	int r;
+
+	r = sd_journal_add_conjunction(j);
+	if (r < 0)
+		error_system("Failed to add conjunction", -r);
+
+	return SCM_UNSPECIFIED;
+}
+
+SCM_DEFINE(journal_add_disjunction, "journal-add-disjunction", 1, 0, 0,
+	   (SCM smob),
+	   "")
+{
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+	int r;
+
+	r = sd_journal_add_disjunction(j);
+	if (r < 0)
+		error_system("Failed to add disjunction", -r);
+
+	return SCM_UNSPECIFIED;
+}
+
+SCM_DEFINE(journal_flush_matches, "journal-flush-matches", 1, 0, 0,
+	   (SCM smob),
+	   "")
+{
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+
+	sd_journal_flush_matches(j);
+	return SCM_UNSPECIFIED;
+}
+
+SCM_DEFINE(journal_seek_head, "journal-seek-head", 1, 0, 0,
+	   (SCM smob),
+	   "")
+{
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+	int r;
+
+	r = sd_journal_seek_head(j);
+	if (r < 0)
+		error_system("Failed to seek to the journal head", -r);
+
+	return SCM_UNSPECIFIED;
+}
+
+SCM_DEFINE(journal_next, "journal-next", 1, 0, 0,
+	   (SCM smob),
+	   "")
+{
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+
+	return scm_from_int(sd_journal_next(j));
+}
+
+SCM_DEFINE(journal_get_data, "journal-get-data", 2, 0, 0,
+	   (SCM smob, SCM field),
+	   "")
+{
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+	char *data;
+	size_t length;
+	int r;
+
+	r = sd_journal_get_data(j, scm_to_locale_string(field), (const void **)&data, &length);
+	if (r < 0)
+		error_system("Failed to retrieve data from journal", -r);
+
+	return scm_from_locale_string((char *)data);
+}
+
+SCM_DEFINE(journal_enumerate_data, "journal-enumerate-data", 1, 0, 0,
+	   (SCM smob),
+	   "")
+{
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+	char *data;
+	size_t length;
+	int r;
+
+	r = sd_journal_enumerate_data(j, (const void **)&data, &length);
+	if (r < 0)
+		error_system("Failed to enumerate data from journal", -r);
+
+	return scm_cons(scm_from_int(r), scm_from_locale_string((char *)data));
+}
+
+SCM_DEFINE(journal_restart_data, "journal-restart-data", 1, 0, 0,
+	   (SCM smob),
+	   "")
+{
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+
+	sd_journal_restart_data(j);
+	return SCM_UNSPECIFIED;
+}
+
+SCM_DEFINE(journal_get_realtime_usec, "journal-get-realtime-usec", 1, 0, 0,
+	   (SCM smob),
+	   "")
+{
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+	uint64_t usec;
+	int r;
+
+	r = sd_journal_get_realtime_usec(j, &usec);
+	if (r < 0)
+		error_system("Failed to get realtime usec", -r);
+
+	return scm_from_uint64(usec);
+}
+
+SCM_DEFINE(journal_get_monotonic_usec, "journal-get-monotonic-usec", 1, 1, 0,
+	   (SCM smob, SCM s_boot_id),
+	   "")
+{
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+	sd_id128_t boot_id;
+	uint64_t usec;
+	int r;
+
+	if (SCM_UNBNDP(s_boot_id)) {
+		sd_id128_get_boot(&boot_id);
+	} else {
+		r = sd_id128_from_string(scm_to_locale_string(s_boot_id), &boot_id);
+		if (r < 0)
+			error_system("Failed to create boot id", -r);
+	}
+
+	r = sd_journal_get_monotonic_usec(j, &usec, &boot_id);
+	if (r < 0)
+		error_system("Failed to get monotonic usec", -r);
+
+	return scm_from_uint64(usec);
+}
+
+SCM_DEFINE(journal_get_usage, "journal-get-usage", 1, 0, 0,
+	   (SCM smob),
+	   "Return journal usage in bytes.")
+{
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+	uint64_t bytes;
+	int r;
+
+	r = sd_journal_get_usage(j, &bytes);
+	if (r < 0)
+		error_system("Failed to get journal usage", -r);
+
+	return scm_from_uint64(bytes);
+}
+
+/** Convenience. */
 
 SCM_DEFINE(journal_boot_id, "journal-boot-id", 0, 0, 0,
 	   (),
@@ -68,77 +329,48 @@ SCM_DEFINE(journal_boot_id, "journal-boot-id", 0, 0, 0,
 
 	r = sd_id128_get_boot(&boot_id);
 	if (r < 0)
-		return _error("failed to read boot id");
+		error_system("Failed to read boot id", -r);
 
 	sd_id128_to_string(boot_id, boot_id_str);
 
 	return scm_from_latin1_string(boot_id_str);
 }
 
-SCM_DEFINE(journal_usage, "journal-usage", 0, 0, 0,
-	   (),
-	   "Return journal usage in bytes.")
+SCM_DEFINE(journal_enumerate_entry, "journal-enumerate-entry", 1, 0, 0,
+	   (SCM smob),
+	   "")
 {
-	sd_journal *j;
-	uint64_t bytes;
-	int r;
+	SCM alist = SCM_EOL;
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+	const void *data;
+	size_t length;
 
-	r = sd_journal_open(&j, SD_JOURNAL_LOCAL_ONLY);
-	if (r < 0)
-		_error("failed to open journal");
+	SD_JOURNAL_FOREACH_DATA(j, data, length) {
+		char strdata[length+1], *key, *value;
 
-	r = sd_journal_get_usage(j, &bytes);
-	if (r < 0)
-		_error("failed to get journal usage");
+		memcpy(strdata, data, length);
+		strdata[length] = '\0';
 
-	return scm_from_uint64(bytes);
+		value = strchr(strdata, '=') + 1;
+		key = strdata;
+		strdata[value-key-1] = '\0';
+
+		alist = scm_acons(scm_from_latin1_string(key),
+				  scm_from_latin1_string(value),
+				  alist);
+	}
+
+	return alist;
 }
 
-
-
-SCM_DEFINE(journal_read, "journal-read", 1, 0, 0,
-	   (SCM fields),
-	   "Read entries from the journal and return the result in an array.")
+SCM_DEFINE(journal_slurp_data, "journal-slurp-data", 1, 0, 0,
+	   (SCM smob),
+	   "")
 {
 	SCM array;
 	scm_t_array_handle handle;
-	sd_journal *j;
-	const void *data;
-	size_t len;
-	int i, n, r;
-
-	r = sd_journal_open(&j, SD_JOURNAL_LOCAL_ONLY);
-	if (r < 0)
-		_error("failed to open journal");
-
-	/* First go over the fields and create the filter. */
-	n = scm_to_int(scm_length(fields));
-	for (i = 0; i < n; i++) {
-		SCM item;
-
-		item = scm_list_ref(fields, scm_from_int(i));
-
-		if (scm_is_string(item)) {
-			char *match;
-
-			match = scm_to_locale_string(item);
-			sd_journal_add_match(j, match, strlen(match));
-
-		} else if (scm_is_symbol(item)) {
-			if (scm_is_eq(item, scm_from_locale_symbol("and")))
-				sd_journal_add_conjunction(j);
-			else if (scm_is_eq(item, scm_from_locale_symbol("or")))
-				sd_journal_add_disjunction(j);
-			else {
-				sd_journal_close(j);
-				_error_with_args("misc-error",
-						 __func__,
-						 "unknown junction: ~A",
-						 scm_list_1(item),
-						 SCM_EOL);
-			}
-		}
-	}
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+	int i, n;
 
 	/* Iterate over the journal and collect the entries with the filter applied.
 	 * A scheme array is used here, because it's very fast an convenient to work
@@ -151,38 +383,55 @@ SCM_DEFINE(journal_read, "journal-read", 1, 0, 0,
 		n++;
 	sd_journal_seek_head(j);
 
-	array = scm_make_array(SCM_UNSPECIFIED, scm_list_1(scm_from_uint(n)));
+	array = scm_make_array(SCM_UNSPECIFIED, scm_list_1(scm_from_int(n)));
 	scm_array_get_handle(array, &handle);
 	i = 0;
 
 	SD_JOURNAL_FOREACH(j) {
-		SCM alist = SCM_EOL;
-
-		SD_JOURNAL_FOREACH_DATA(j, data, len) {
-			char strdata[len+1], *key, *value;
-
-			memcpy(strdata, data, len);
-			strdata[len] = '\0';
-
-			value = strchr(strdata, '=') + 1;
-			key = strdata;
-			strdata[value-key-1] = '\0';
-
-			alist = scm_acons(scm_from_latin1_string(key),
-					  scm_from_latin1_string(value),
-					  alist);
-		}
-
-		scm_array_handle_set(&handle, i, alist);
+		scm_array_handle_set(&handle, i, journal_enumerate_entry(smob));
 		i++;
 	}
 
 	scm_array_handle_release(&handle);
-	sd_journal_close(j);
 	return array;
+}
+
+static size_t close_journal(SCM smob)
+{
+	sd_journal_close((sd_journal *)SCM_SMOB_DATA(smob));
+	return 0;
+}
+
+static int print_journal(SCM smob, SCM port, scm_print_state *pstate)
+{
+	SCM s_flags = SCM_EOL;
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+
+	if (j->flags & SD_JOURNAL_CURRENT_USER)
+		s_flags = scm_cons(scm_symbol_to_string(sym_current_user), s_flags);
+	if (j->flags & SD_JOURNAL_SYSTEM)
+		s_flags = scm_cons(scm_symbol_to_string(sym_system), s_flags);
+	if (j->flags & SD_JOURNAL_RUNTIME_ONLY)
+		s_flags = scm_cons(scm_symbol_to_string(sym_runtime_only), s_flags);
+	if (j->flags & SD_JOURNAL_LOCAL_ONLY)
+		s_flags = scm_cons(scm_symbol_to_string(sym_local_only), s_flags);
+
+	scm_puts("#<journal flags:", port);
+	if (scm_is_true(scm_null_p(s_flags)))
+		scm_puts("none", port);
+	else
+		scm_display(scm_string_join(s_flags,
+					    scm_from_latin1_string(","),
+					    scm_from_latin1_symbol("infix")),
+			    port);
+	scm_puts(">", port);
+	return 1;
 }
 
 void init_journal(void)
 {
+	journal_tag = scm_make_smob_type("journal", sizeof(struct sd_journal));
+	scm_set_smob_free(journal_tag, close_journal);
+	scm_set_smob_print(journal_tag, print_journal);
 #include "journal.x"
 }
