@@ -36,7 +36,7 @@
             current-boot-match
             journal-send
             ))
-(load-extension "./libguile-journal" "init_journal")
+(load-extension "libguile-journal" "init_journal")
 
 
 (define (current-boot-match)

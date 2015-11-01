@@ -7,20 +7,21 @@ Experimental Scheme bindings for systemd.
 - systemd-v225+
 
 ## Installation
-None, yet...
-
-## Usage
-First, compile the bindings.
+Compile the bindings.
 ```bash
 $ make
 ```
 
-The compilation will create a dynamically linked library called **libguile-journal.so**.
+Install the bindings.
+```bash
+# make install
+```
 
+## Usage
 Fire up guile.
 ```bash
 
-$ guile -l journal.scm
+$ guile
 ```
 
 In the guile repl, load the module and start using it.
@@ -35,6 +36,6 @@ Runnable examples with comments are presented in **example.scm**.
 Run
 ```bash
 
-$ guile -l journal.scm
+$ guile -l example.scm
 ```
 and then use the interactive REPL to play around with them.

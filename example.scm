@@ -5,11 +5,6 @@
 ;;; the Free Software Foundation; either version 2.1 of the License, or
 ;;; (at your option) any later version.
 
-;; Since we're testing from the current directory, it has to be added
-;; to the Guile's load path. If the module was properly installed,
-;; the following line would be ommitted.
-(add-to-load-path ".")
-
 ;; Load the journal module.
 (use-modules (journal))
 

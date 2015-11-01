@@ -1,12 +1,36 @@
 CC = gcc
 GUILE_CFLAGS = $(shell pkg-config guile-2.0 --cflags)
 CFLAGS = -std=c99 -pedantic -Wall $(GUILE_CFLAGS) -g
+SOURCES = journal.c
+SNARFS = $(SOURCES:.c=.x)
+BIN = libguile-journal.so
 
 LIBS = $(shell pkg-config guile-2.0 --libs) -lsystemd
 
-all: libguile-journal.so
+SITEDIR = $(shell guile -c "(display (%site-dir))(newline)")
+SITECCACHEDIR = $(shell guile -c "(display (%site-ccache-dir))(newline)")
+EXTENSIONDIR = $(shell guile -c "(display (assoc-ref %guile-build-info 'extensiondir))(newline)")
 
-libguile-journal.so: journal.c
-	guile-snarf -o journal.x $< $(GUILE_CFLAGS)
-	$(CC) $(CFLAGS) $(LIBS) -shared -o libguile-journal.so -fPIC journal.c
+$(BIN): $(SNARFS) $(OBJECTS)
+	$(CC) $(CFLAGS) $(LIBS) -shared -o $@ -fPIC $(SOURCES)
 
+%.x: %.c
+	guile-snarf -o $@ $< $(GUILE_CFLAGS)
+
+journal.go: journal.scm
+	guild compile $< -o $@
+
+install: journal.go
+	install -p -m 755 $(BIN) -D $(EXTENSIONDIR)/$(BIN)
+	install -p -m 644 journal.scm -D $(SITEDIR)/journal.scm
+	install -p -m 644 journal.go -D $(SITECCACHEDIR)/journal.go
+
+uninstall:
+	rm -f $(EXTENSIONDIR)/$(BIN)
+	rm -f $(SITEDIR)/journal.scm
+	rm -f $(SITECCACHEDIR)/journal.go
+
+clean:
+	rm -f journal.x libguile-journal.so journal.go
+
+.PHONY: clean install uninstall
