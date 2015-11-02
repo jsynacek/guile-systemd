@@ -279,27 +279,23 @@ SCM_DEFINE(journal_get_realtime_usec, "journal-get-realtime-usec", 1, 0, 0,
 }
 
 SCM_DEFINE(journal_get_monotonic_usec, "journal-get-monotonic-usec", 1, 1, 0,
-	   (SCM smob, SCM s_boot_id),
-	   "")
+	   (SCM smob),
+	   "Get the monotonic timestamp of the current journal entry.\n"
+	   "Returns (USEC . BOOT_ID) pair, where USEC is the monotonic timestamp\n"
+	   "in microseconds and BOOT_ID is the boot ID of that timestamp.")
 {
 	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
 	sd_id128_t boot_id;
+	char boot_id_str[33];
 	uint64_t usec;
 	int r;
-
-	if (SCM_UNBNDP(s_boot_id)) {
-		sd_id128_get_boot(&boot_id);
-	} else {
-		r = sd_id128_from_string(scm_to_locale_string(s_boot_id), &boot_id);
-		if (r < 0)
-			error_system("Failed to create boot id", -r);
-	}
 
 	r = sd_journal_get_monotonic_usec(j, &usec, &boot_id);
 	if (r < 0)
 		error_system("Failed to get monotonic usec", -r);
 
-	return scm_from_uint64(usec);
+	return scm_cons(scm_from_uint64(usec),
+			scm_from_locale_string(sd_id128_to_string(boot_id, boot_id_str)));
 }
 
 SCM_DEFINE(journal_get_usage, "journal-get-usage", 1, 0, 0,
