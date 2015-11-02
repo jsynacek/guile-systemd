@@ -22,12 +22,12 @@ journal.go: journal.scm
 
 install: journal.go
 	install -p -m 755 $(BIN) -D $(EXTENSIONDIR)/$(BIN)
-	install -p -m 644 journal.scm -D $(SITEDIR)/journal.scm
+	install -p -m 644 journal.scm -D $(SITEDIR)/systemd/journal.scm
 	install -p -m 644 journal.go -D $(SITECCACHEDIR)/journal.go
 
 uninstall:
 	rm -f $(EXTENSIONDIR)/$(BIN)
-	rm -f $(SITEDIR)/journal.scm
+	rm -f $(SITEDIR)/systemd
 	rm -f $(SITECCACHEDIR)/journal.go
 
 clean:

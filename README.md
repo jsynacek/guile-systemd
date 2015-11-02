@@ -26,8 +26,8 @@ $ guile
 
 In the guile repl, load the module and start using it.
 ```
-scheme@(guile-user)> (use-modules (journal))
-scheme@(guile-user)> (send! "Hello journal!" #:priority 6)
+scheme@(guile-user)> (use-modules (systemd journal))
+scheme@(guile-user)> (journal-send "Hello journal!" #:priority 6)
 ```
 
 ## Examples

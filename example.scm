@@ -6,7 +6,7 @@
 ;;; (at your option) any later version.
 
 ;; Load the journal module.
-(use-modules (journal))
+(use-modules (systemd journal))
 
 ;; Helper function. It is not supposed to be run as an example.
 (define (print-short-entry entry sec)
