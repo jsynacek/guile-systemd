@@ -32,14 +32,14 @@
 
 (define (send-message)
   "Send a simple hello message to the journal."
-  (send! "Hello journal"))
+  (journal-send "Hello journal"))
 
 (define (send-custom-message)
   "Send a message with custom fields to the journal."
-  (send! "Error: your code is borked!"
-         #:priority 3
-         #:fields '(("CODE_FUNC" . "fix_all_software_procedure")
-                    ("CODE_LINE" . 1))))
+  (journal-send "Error: your code is borked!"
+                #:priority 3
+                #:fields '(("CODE_FUNC" . "fix_all_software_procedure")
+                           ("CODE_LINE" . 1))))
 
 (define (display-polkit-or-current-boot)
   "Display all messages of the current boot, plus all messages from
