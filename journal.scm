@@ -22,6 +22,7 @@
             journal-flush-matches
             journal-seek-head
             journal-next
+            journal-previous
             journal-get-data
             journal-enumerate-data
             journal-restart-data

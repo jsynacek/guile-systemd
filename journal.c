@@ -224,6 +224,15 @@ SCM_DEFINE(journal_next, "journal-next", 1, 0, 0,
 	return scm_from_int(sd_journal_next(j));
 }
 
+SCM_DEFINE(journal_previous, "journal-previous", 1, 0, 0,
+	   (SCM smob),
+	   "Advance to previous entry of the journal.")
+{
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+
+	return scm_from_int(sd_journal_previous(j));
+}
+
 SCM_DEFINE(journal_get_data, "journal-get-data", 2, 0, 0,
 	   (SCM smob, SCM s_field),
 	   "Retrieve FIELD data of the current entry from the journal.")
