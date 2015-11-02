@@ -77,19 +77,19 @@ static void error_system_error(const char *proc, const char *message, int errno)
 #define error_system(message, errno) error_system_error(__func__, message, errno)
 
 SCM_DEFINE(journal_send, "journal-sendv", 1, 0, 0,
-	   (SCM messages),
-	   "")
+	   (SCM s_fields),
+	   "Send an entry consisting of FIELDS to the journal.")
 {
 	struct iovec *iov;
 	int i, n, r;
 
-	n = scm_to_int(scm_length(messages));
+	n = scm_to_int(scm_length(s_fields));
 	iov = alloca(n * sizeof(struct iovec));
 
 	for (i = 0; i < n; i++) {
 		char *msg;
 
-		msg = scm_to_locale_string(scm_list_ref(messages, scm_from_int(i)));
+		msg = scm_to_locale_string(scm_list_ref(s_fields, scm_from_int(i)));
 		iov[i].iov_base = msg;
 		iov[i].iov_len = strlen(msg);
 	}
@@ -108,7 +108,10 @@ SCM_SYMBOL(sym_current_user, "current-user");
 
 SCM_DEFINE(journal_open, "journal-open", 1, 0, 0,
 	   (SCM s_flags),
-	   "")
+	   "Open journal using FLAGS and return a journal smob."
+	   "Possible flags are symbols: local-only, runtime-only, system, current-user.\n"
+	   "They map to the journal's internal flags SD_JOURNAL_LOCAL_ONLY,\n"
+	   "SD_JOURNAL_RUNTIME_ONLY, SD_JOURNAL_SYSTEM and SD_JOURNAL_CURRENT_USER respectively.")
 {
 	SCM smob;
 	sd_journal *j;
@@ -146,7 +149,7 @@ SCM_DEFINE(journal_open, "journal-open", 1, 0, 0,
 
 SCM_DEFINE(journal_add_match, "journal-add-match", 2, 0, 0,
 	   (SCM smob, SCM s_match),
-	   "")
+	   "Add MATCH to the journal.")
 {
 	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
 	char *data;
@@ -162,7 +165,7 @@ SCM_DEFINE(journal_add_match, "journal-add-match", 2, 0, 0,
 
 SCM_DEFINE(journal_add_conjunction, "journal-add-conjunction", 1, 0, 0,
 	   (SCM smob),
-	   "")
+	   "Add conjunction to the journal.")
 {
 	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
 	int r;
@@ -176,7 +179,7 @@ SCM_DEFINE(journal_add_conjunction, "journal-add-conjunction", 1, 0, 0,
 
 SCM_DEFINE(journal_add_disjunction, "journal-add-disjunction", 1, 0, 0,
 	   (SCM smob),
-	   "")
+	   "Add disjunction to the journal.")
 {
 	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
 	int r;
@@ -190,7 +193,7 @@ SCM_DEFINE(journal_add_disjunction, "journal-add-disjunction", 1, 0, 0,
 
 SCM_DEFINE(journal_flush_matches, "journal-flush-matches", 1, 0, 0,
 	   (SCM smob),
-	   "")
+	   "Flush all matches from the journal.")
 {
 	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
 
@@ -200,7 +203,7 @@ SCM_DEFINE(journal_flush_matches, "journal-flush-matches", 1, 0, 0,
 
 SCM_DEFINE(journal_seek_head, "journal-seek-head", 1, 0, 0,
 	   (SCM smob),
-	   "")
+	   "Seek to the head of the journal.")
 {
 	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
 	int r;
@@ -214,7 +217,7 @@ SCM_DEFINE(journal_seek_head, "journal-seek-head", 1, 0, 0,
 
 SCM_DEFINE(journal_next, "journal-next", 1, 0, 0,
 	   (SCM smob),
-	   "")
+	   "Advance to next entry of the journal.")
 {
 	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
 
@@ -222,15 +225,15 @@ SCM_DEFINE(journal_next, "journal-next", 1, 0, 0,
 }
 
 SCM_DEFINE(journal_get_data, "journal-get-data", 2, 0, 0,
-	   (SCM smob, SCM field),
-	   "")
+	   (SCM smob, SCM s_field),
+	   "Retrieve FIELD data of the current entry from the journal.")
 {
 	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
 	char *data;
 	size_t length;
 	int r;
 
-	r = sd_journal_get_data(j, scm_to_locale_string(field), (const void **)&data, &length);
+	r = sd_journal_get_data(j, scm_to_locale_string(s_field), (const void **)&data, &length);
 	if (r < 0)
 		error_system("Failed to retrieve data from journal", -r);
 
@@ -239,7 +242,7 @@ SCM_DEFINE(journal_get_data, "journal-get-data", 2, 0, 0,
 
 SCM_DEFINE(journal_enumerate_data, "journal-enumerate-data", 1, 0, 0,
 	   (SCM smob),
-	   "")
+	   "Enumerate data of the current entry of the journal.")
 {
 	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
 	char *data;
@@ -255,7 +258,7 @@ SCM_DEFINE(journal_enumerate_data, "journal-enumerate-data", 1, 0, 0,
 
 SCM_DEFINE(journal_restart_data, "journal-restart-data", 1, 0, 0,
 	   (SCM smob),
-	   "")
+	   "Reset the data enumeration index to the beginning of the entry.")
 {
 	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
 
@@ -265,7 +268,7 @@ SCM_DEFINE(journal_restart_data, "journal-restart-data", 1, 0, 0,
 
 SCM_DEFINE(journal_get_realtime_usec, "journal-get-realtime-usec", 1, 0, 0,
 	   (SCM smob),
-	   "")
+	   "Get the realtime (wallclock) timestamp of the current journal entry.")
 {
 	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
 	uint64_t usec;
@@ -334,7 +337,7 @@ SCM_DEFINE(journal_boot_id, "journal-boot-id", 0, 0, 0,
 
 SCM_DEFINE(journal_enumerate_entry, "journal-enumerate-entry", 1, 0, 0,
 	   (SCM smob),
-	   "")
+	   "Return the current entry as an associative list.")
 {
 	SCM alist = SCM_EOL;
 	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
@@ -361,7 +364,7 @@ SCM_DEFINE(journal_enumerate_entry, "journal-enumerate-entry", 1, 0, 0,
 
 SCM_DEFINE(journal_slurp_data, "journal-slurp-data", 1, 0, 0,
 	   (SCM smob),
-	   "")
+	   "Return all entries of the journal.")
 {
 	SCM array;
 	scm_t_array_handle handle;
