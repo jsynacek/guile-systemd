@@ -21,6 +21,9 @@
             journal-add-disjunction
             journal-flush-matches
             journal-seek-head
+            journal-seek-tail
+            journal-seek-monotonic-usec
+            journal-seek-realtime-usec
             journal-next
             journal-previous
             journal-get-data

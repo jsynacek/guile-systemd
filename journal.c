@@ -215,6 +215,54 @@ SCM_DEFINE(journal_seek_head, "journal-seek-head", 1, 0, 0,
 	return SCM_UNSPECIFIED;
 }
 
+SCM_DEFINE(journal_seek_tail, "journal-seek-tail", 1, 0, 0,
+	   (SCM smob),
+	   "Seek to the tail of the journal.")
+{
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+	int r;
+
+	r = sd_journal_seek_tail(j);
+	if (r < 0)
+		error_system("Failed to seek to the journal tail", -r);
+
+	return SCM_UNSPECIFIED;
+}
+
+SCM_DEFINE(journal_seek_monotonic_usec, "journal-seek-monotonic-usec", 3, 0, 0,
+	   (SCM smob, SCM s_boot_id, SCM s_usec),
+	   "Seek to the entry with the specified BOOT_ID and monotonic USEC timestamp.")
+{
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+	sd_id128_t boot_id;
+	int r;
+
+	r = sd_id128_from_string(scm_to_locale_string(s_boot_id), &boot_id);
+	if (r < 0)
+		error_system("Failed to create boot id from string", -r);
+
+
+	r = sd_journal_seek_monotonic_usec(j, boot_id, scm_to_uint64(s_usec));
+	if (r < 0)
+		error_system("Failed to seek to monotonic timestamp", -r);
+
+	return SCM_UNSPECIFIED;
+}
+
+SCM_DEFINE(journal_seek_realtime_usec, "journal-seek-realtime-usec", 2, 0, 0,
+	   (SCM smob, SCM s_usec),
+	   "Seek to the entry with the specified realtime (wallclock) USEC timestamp.")
+{
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+	int r;
+
+	r = sd_journal_seek_realtime_usec(j, scm_to_uint64(s_usec));
+	if (r < 0)
+		error_system("Failed to seek to realtime timestamp", -r);
+
+	return SCM_UNSPECIFIED;
+}
+
 SCM_DEFINE(journal_next, "journal-next", 1, 0, 0,
 	   (SCM smob),
 	   "Advance to next entry of the journal.")
