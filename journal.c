@@ -323,6 +323,54 @@ SCM_DEFINE(journal_restart_data, "journal-restart-data", 1, 0, 0,
 	return SCM_UNSPECIFIED;
 }
 
+SCM_DEFINE(journal_query_unique, "journal-query-unique", 2, 0, 0,
+	   (SCM smob, SCM s_field),
+	   "Query the journal for all unique values the specified FIELD can take.")
+{
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+	int r;
+
+	r = sd_journal_query_unique(j, scm_to_locale_string(s_field));
+	if (r < 0)
+		error_system("Failed to query journal for unique data", -r);
+
+	return SCM_UNSPECIFIED;
+}
+
+SCM_DEFINE(journal_enumerate_unique, "journal-enumerate-unique", 1, 0, 0,
+	   (SCM smob),
+	   "Iterate through all data fields which match the previously selected\n"
+	   "field name as set with `journal-query-unique'.")
+{
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+	char *data;
+	size_t length;
+	char *strdata;
+	int r;
+
+	r = sd_journal_enumerate_unique(j, (const void **)&data, &length);
+	if (r < 0)
+		error_system("Failed to enumerate unique data from journal", -r);
+	else if (r == 0)
+		return SCM_BOOL_F;
+
+	strdata = alloca(length + 1);
+	memcpy(strdata, data, length);
+	strdata[length] = '\0';
+
+	return scm_from_locale_string(strchr(strdata, '=') + 1);
+}
+
+SCM_DEFINE(journal_restart_unique, "journal-restart-unique", 1, 0, 0,
+	   (SCM smob),
+	   "Reset the data enumeration index to the beginning of the list of unique data.")
+{
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+
+	sd_journal_restart_unique(j);
+	return SCM_UNSPECIFIED;
+}
+
 SCM_DEFINE(journal_get_realtime_usec, "journal-get-realtime-usec", 1, 0, 0,
 	   (SCM smob),
 	   "Get the realtime (wallclock) timestamp of the current journal entry.")
@@ -417,6 +465,27 @@ SCM_DEFINE(journal_enumerate_entry, "journal-enumerate-entry", 1, 0, 0,
 	}
 
 	return alist;
+}
+
+SCM_DEFINE(journal_enumerate_unique_entry, "journal-enumerate-unique-entries", 1, 0, 0,
+	   (SCM smob),
+	   "Return the unique entries as a list.")
+{
+	SCM list = SCM_EOL;
+	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
+	const void *data;
+	size_t length;
+
+	SD_JOURNAL_FOREACH_UNIQUE(j, data, length) {
+		char strdata[length+1];
+
+		memcpy(strdata, data, length);
+		strdata[length] = '\0';
+
+		list = scm_cons(scm_from_locale_string(strchr(strdata, '=') + 1), list);
+	}
+
+	return list;
 }
 
 SCM_DEFINE(journal_slurp_data, "journal-slurp-data", 1, 0, 0,

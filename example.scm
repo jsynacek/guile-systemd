@@ -93,3 +93,28 @@ Examples:
                          (floor (/ (journal-get-realtime-usec j)
                                    1000000))))))
 
+(define (list-unique-boots)
+  "List all unique boot IDs present in the journal."
+  (define (list-unique field)
+    "List all journal entries with a unique FIELD."
+    (let ((j (journal-open '(local-only))))
+      (journal-query-unique j field)
+      (for-each (lambda (data)
+                  (format #t "~s: ~s" field data) (newline))
+                (journal-enumerate-unique-entries j))))
+  (list-unique "_BOOT_ID"))
+
+(define (list-unique-units)
+  "List all unique units present in the journal."
+  ;; Note that this version of list-unique is using the low-level API,
+  ;; not the convenience journal-enumerate-unique-entries. This version
+  ;; is a bit less lispy, but works nonetheless.
+  (define (list-unique field)
+    "List all journal entries with a unique FIELD."
+    (let ((j (journal-open '(local-only))))
+      (journal-query-unique j field)
+      (let ((data (journal-enumerate-unique j)))
+        (while data
+          (format #t "~s: ~s" field data) (newline)
+          (set! data (journal-enumerate-unique j))))))
+  (list-unique "_SYSTEMD_UNIT"))

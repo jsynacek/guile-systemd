@@ -29,12 +29,16 @@
             journal-get-data
             journal-enumerate-data
             journal-restart-data
+            journal-query-unique
+            journal-enumerate-unique
+            journal-restart-unique
             journal-get-realtime-usec
             journal-get-monotonic-usec
             journal-get-usage
             ;; Convenience.
             journal-boot-id
             journal-enumerate-entry
+            journal-enumerate-unique-entries
             journal-slurp-data
             ;; Local.
             current-boot-match
