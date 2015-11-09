@@ -18,6 +18,7 @@
 #include <alloca.h>
 #include <libguile.h>
 #include <systemd/sd-journal.h>
+#include "common.h"
 
 /* XXX: This is an awful hack that is here because the systemd API hides
    the sd_journal struct with a typedef. I should really try to figure
@@ -66,15 +67,6 @@ struct sd_journal {
 
 
 static scm_t_bits journal_tag;
-
-static void error_system_error(const char *proc, const char *message, int errno)
-{
-	scm_error_scm(scm_from_latin1_symbol("system-error"),
-		      scm_from_latin1_string(proc),
-		      scm_from_locale_string(message), SCM_EOL,
-		      scm_list_1(scm_from_int(errno)));
-}
-#define error_system(message, errno) error_system_error(__func__, message, errno)
 
 SCM_DEFINE(journal_send, "journal-sendv", 1, 0, 0,
 	   (SCM s_fields),
