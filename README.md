@@ -1,5 +1,5 @@
-# scheme-systemd
-Experimental Scheme bindings for systemd.
+# guile-systemd
+Experimental scheme bindings for systemd.
 
 ## Requirements
 - gcc
