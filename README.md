@@ -13,7 +13,7 @@ $ make
 ```
 
 Install the bindings.
-```bash
+```
 # make install
 ```
 
