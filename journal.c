@@ -486,33 +486,13 @@ SCM_DEFINE(journal_slurp_data, "journal-slurp-data", 1, 0, 0,
 	   (SCM smob),
 	   "Return all entries of the journal.")
 {
-	SCM array;
-	scm_t_array_handle handle;
+	SCM s_list = SCM_EOL;
 	sd_journal *j = (sd_journal *)SCM_SMOB_DATA(smob);
-	int i, n;
 
-	/* Iterate over the journal and collect the entries with the filter applied.
-	 * A scheme array is used here, because it's very fast an convenient to work
-	 * with from C. Despite using two passes to first count the number of entries
-	 * that will be returned and then creating the array, it's still *much* faster
-	 * that appending the values to a list in a single pass.
-	 */
-	n = 0;
 	SD_JOURNAL_FOREACH(j)
-		n++;
-	sd_journal_seek_head(j);
+		s_list = scm_cons(journal_enumerate_entry(smob), s_list);
 
-	array = scm_make_array(SCM_UNSPECIFIED, scm_list_1(scm_from_int(n)));
-	scm_array_get_handle(array, &handle);
-	i = 0;
-
-	SD_JOURNAL_FOREACH(j) {
-		scm_array_handle_set(&handle, i, journal_enumerate_entry(smob));
-		i++;
-	}
-
-	scm_array_handle_release(&handle);
-	return array;
+	return s_list;
 }
 
 static size_t close_journal(SCM smob)
