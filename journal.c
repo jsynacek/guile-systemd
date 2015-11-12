@@ -301,8 +301,10 @@ SCM_DEFINE(journal_enumerate_data, "journal-enumerate-data", 1, 0, 0,
 	r = sd_journal_enumerate_data(j, (const void **)&data, &length);
 	if (r < 0)
 		error_system("Failed to enumerate data from journal", -r);
+	else if (r == 0)
+		return SCM_BOOL_F;
 
-	return scm_cons(scm_from_int(r), scm_from_locale_string((char *)data));
+	return scm_from_locale_string((char *)data);
 }
 
 SCM_DEFINE(journal_restart_data, "journal-restart-data", 1, 0, 0,
